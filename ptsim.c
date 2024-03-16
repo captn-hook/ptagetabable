@@ -87,30 +87,36 @@ void new_process(int proc_num, int page_count)
     }
 }
 
-//kill a process
-// void kill_process(int proc_num) //blarggggggggg
-// {
-//     int ptp_page = get_page_table(proc_num);
-//     if (ptp_page == 0)
-//     {
-//         printf("failed to kill %d: none\n", proc_num);
-//         return;
-//     }
-//     //free the page table
-//     int ptp_addr = get_address(0, PTP_OFFSET + proc_num);
-//     mem[ptp_addr] = 0;
-
-//     //free the data
-//     for (int i = 0; i < PAGE_COUNT; i++)
-//     {
-//         int addr = get_address(ptp_page, i);
-//         int page = mem[addr];
-//         if (page != 0)
-//         {
-//             mem[addr] = 0;
-//         }
-//     }
-// }
+// kill a process
+void kill_process(int proc_num)
+{
+    int ptp_page = get_page_table(proc_num);
+    if (ptp_page == 0)
+    {
+        printf("failed to kill %d: none\n", proc_num);
+        return;
+    }
+    // free the page table
+    int ptp_addr = get_address(0, PTP_OFFSET + proc_num);
+    mem[ptp_addr] = 0;
+    // free the data
+    for (int i = 0; i < PAGE_COUNT; i++)
+    {
+        int addr = get_address(ptp_page, i);
+        int page = mem[addr];
+        // free the page
+        mem[addr] = 0;
+        // free the data
+        if (page != 0)
+        {
+            int addr = get_address(0, page);
+            mem[addr] = 0;
+        }
+    }
+    // free the page table page
+    int addr = get_address(0, ptp_page);
+    mem[addr] = 0;
+}
 
 //
 // Print the free page map
@@ -158,6 +164,41 @@ void print_page_table(int proc_num)
     }
 }
 
+// MUST OUTPUT
+// printf("Store proc %d: %d => %d, value=%d\n",
+//     proc_num, vaddr, addr, val);
+void store_value(int proc_num, int vaddr, int val)
+{
+    int page_table = get_page_table(proc_num);
+    // get the vpn
+    int virtual_page = vaddr >> PAGE_SHIFT;
+    int offset = vaddr & (PAGE_SIZE - 1);
+
+    int phys_page = mem[get_address(page_table, virtual_page)];
+    int addr = get_address(phys_page, offset);
+
+    mem[addr] = val;
+    printf("Store proc %d: %d => %d, value=%d\n", proc_num, vaddr, addr, val);
+}
+
+// MUST OUTPUT
+// printf("Load proc %d: %d => %d, value=%d\n",
+//     proc_num, vaddr, addr, val);
+int load_value(int proc_num, int vaddr)
+{
+    int page_table = get_page_table(proc_num);
+
+    int virtual_page = vaddr >> PAGE_SHIFT;
+    int offset = vaddr & (PAGE_SIZE - 1);
+
+    int phys_page = mem[get_address(page_table, virtual_page)];
+    int addr = get_address(phys_page, offset);
+
+    int val = mem[addr];
+    printf("Load proc %d: %d => %d, value=%d\n", proc_num, vaddr, addr, val);
+    return val;
+}
+
 //
 // Main -- process command line
 //
@@ -190,15 +231,28 @@ int main(int argc, char *argv[])
             int page_count = atoi(argv[++i]);
             new_process(process_num, page_count);
         }
-        // else if (strcmp(argv[i], "kp") == 0)
-        // {
-        //     int process_num = atoi(argv[++i]);
-        //     kill_process(process_num);
-        // }
-        // else
-        // {
-        //     fprintf(stderr, "unknown command: %s\n", argv[i]);
-        //     return 1;
-        // }
+        else if (strcmp(argv[i], "kp") == 0)
+        {
+            int process_num = atoi(argv[++i]);
+            kill_process(process_num);
+        }
+        else if (strcmp(argv[i], "sb") == 0)
+        { // For process n at virtual address a, store the value b.
+            int process_num = atoi(argv[++i]);
+            int vaddr = atoi(argv[++i]);
+            int val = atoi(argv[++i]);
+            store_value(process_num, vaddr, val);
+        }
+        else if (strcmp(argv[i], "lb") == 0)
+        { // For process n, get the value at virtual address a.
+            int process_num = atoi(argv[++i]);
+            int vaddr = atoi(argv[++i]);
+            load_value(process_num, vaddr);
+        }
+        else
+        {
+            fprintf(stderr, "unknown command: %s\n", argv[i]);
+            return 1;
+        }
     }
 }
